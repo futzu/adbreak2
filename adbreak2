@@ -1,0 +1,132 @@
+#!/usr/bin/env python3
+
+"""
+adbreak2
+
+generates SCTE-35 cues for sidecar files
+"""
+
+import argparse
+import os
+from threefive import Cue
+from threefive.encode import mk_splice_insert
+
+
+def argue():
+    """
+    argue parse command line args
+    """
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "-d",
+        "--duration",
+        type=float,
+        default=60.0,
+        help="set duration of ad break. [ default: 60.0 ]",
+    )
+    parser.add_argument(
+        "-e",
+        "--event-id",
+        type=int,
+        default=1,
+        help="set event id for ad break. [ default: 1 ]",
+    )
+    parser.add_argument(
+        "-i",
+        "--cue-in-only",
+        action="store_const",
+        default=False,
+        const=True,
+        help="only make a cue-in SCTE-35 cue [ default: False ]",
+    )
+    parser.add_argument(
+        "-o",
+        "--cue-out-only",
+        action="store_const",
+        default=False,
+        const=True,
+        help="only make a cue-out SCTE-35 cue [ default: False ]",
+    )
+    parser.add_argument(
+        "-p",
+        "--pts",
+        type=float,
+        default=0.0,
+        help="set start pts for ad break. Not setting pts will generate a Splice Immediate CUE-OUT. [ default: 0.0 ]",
+    )
+    parser.add_argument(
+        "-s",
+        "--sidecar",
+        default="sidecar.txt",
+        help="""Sidecar file of SCTE-35 (pts,cue) pairs. [ default: sidecar.txt ] """,
+    )
+    parser.add_argument(
+        "-v",
+        "--version",
+        action="store_const",
+        default=False,
+        const=True,
+        help="Show version",
+    )
+
+    return parser.parse_args()
+
+
+def show_cue(new_cue):
+    """
+    show_cue displays cue data
+    """
+    cue = Cue(new_cue)
+    cue.decode()
+    cue.show()
+
+
+def cue_out(event_id, pts, duration, sidecar):
+    """
+    cue_out generates a SCTE-35 cue with out of network set to True
+    """
+    if args.pts == 0.0:
+        cue = mk_splice_insert(event_id, duration=duration, out=True).encode()
+    else:
+        cue = mk_splice_insert(event_id, pts=pts, duration=duration, out=True).encode()
+    write_line(pts, cue, sidecar)
+
+
+def cue_in(event_id, pts, sidecar):
+    """
+    cue_in generates a SCTE-35 cue with out of network set to False
+    """
+    cue = mk_splice_insert(event_id, pts=pts, out=False).encode()
+    write_line(pts, cue, sidecar)
+
+
+def write_line(pts, cue, sidecar):
+    """
+    write_line writes pts,cue to sidecar file
+    """
+    show_cue(cue)
+    line = f"{pts},{cue}\n"
+    sidecar.write(line)
+
+
+def mk_cues(args):
+    """
+    mk_cues generates cues for the sidecar
+    based on the values in args
+    """
+    event_id = args.event_id
+    duration = args.duration
+    pts = args.pts
+    if pts == 0.0:
+        args.cue_out_only = True
+    with open(args.sidecar, "a") as sidecar:
+        if not args.cue_in_only:
+            cue_out(event_id, pts, duration, sidecar)
+            pts = pts + duration
+        if not args.cue_out_only:
+            cue_in(event_id, pts, sidecar)
+
+
+if __name__ == "__main__":
+    args = argue()
+    mk_cues(args)
