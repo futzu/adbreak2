@@ -78,7 +78,16 @@ def show_cue(new_cue):
     """
     cue = Cue(new_cue)
     cue.decode()
-    cue.show()
+    head = "\t\tCUE-OUT"
+    body = f"   PTS:{cue.command.pts_time}   Id:{cue.command.splice_event_id}"
+    tail = f"   Duration: {cue.command.break_duration}"
+    if not cue.command.out_of_network_indicator:
+        head = f"\t\tCUE-IN "
+        tail = "\n"
+    print(head + body + tail)
+
+
+# cue.command.show()
 
 
 def cue_out(event_id, pts, duration, sidecar):
@@ -119,10 +128,12 @@ def mk_cues(args):
     pts = args.pts
     if pts == 0.0:
         args.cue_out_only = True
+    print(f"\nWriting to sidecar file: {args.sidecar}\n")
     with open(args.sidecar, "a") as sidecar:
         if not args.cue_in_only:
             cue_out(event_id, pts, duration, sidecar)
             pts = pts + duration
+            event_id += 1
         if not args.cue_out_only:
             cue_in(event_id, pts, sidecar)
 
